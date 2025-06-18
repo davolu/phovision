@@ -1,9 +1,11 @@
 import numpy as np
-from phovision.filters import (
+from phovision import (
     gaussian_blur,
     median_filter,
     mean_filter,
-    bilateral_filter
+    bilateral_filter,
+    read_image,
+    save_image
 )
 
 def create_noisy_image(width=200, height=200):
@@ -27,20 +29,30 @@ def main():
     mean_result = mean_filter(image, kernel_size=3)
     bilateral_result = bilateral_filter(image, kernel_size=5, sigma_spatial=1.0, sigma_intensity=50.0)
     
-    # Save results (requires PIL/Pillow)
+    # Save results using phovision's save_image function
+    save_image(image, 'original.png')
+    save_image(gaussian_result, 'gaussian_blur.png')
+    save_image(median_result, 'median_filter.png')
+    save_image(mean_result, 'mean_filter.png')
+    save_image(bilateral_result, 'bilateral_filter.png')
+    
+    print("Images saved successfully!")
+    
+    # Example of reading an existing image
     try:
-        from PIL import Image
+        # You can read images from:
+        # 1. Local file
+        img1 = read_image('original.png')
         
-        Image.fromarray(image).save('original.png')
-        Image.fromarray(gaussian_result).save('gaussian_blur.png')
-        Image.fromarray(median_result).save('median_filter.png')
-        Image.fromarray(mean_result).save('mean_filter.png')
-        Image.fromarray(bilateral_result).save('bilateral_filter.png')
+        # 2. URL (uncomment to test)
+        # img2 = read_image('https://example.com/image.jpg')
         
-        print("Images saved successfully!")
-    except ImportError:
-        print("PIL/Pillow is required to save images. Please install it using:")
-        print("pip install Pillow")
+        # 3. Base64 string (if you have one)
+        # img3 = read_image('data:image/png;base64,iVBORw0KGgoAAAANSUhEUgA...')
+        
+        print("Image reading examples completed successfully!")
+    except Exception as e:
+        print(f"Error reading image: {e}")
 
 if __name__ == "__main__":
     main() 

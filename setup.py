@@ -5,7 +5,7 @@ with open("README.md", "r", encoding="utf-8") as fh:
 
 setup(
     name="phovision",
-    version="0.1.1",
+    version="0.1.3",
     description="A pure Python computer vision library",
     long_description=long_description,
     long_description_content_type="text/markdown",
@@ -16,6 +16,14 @@ setup(
     install_requires=[
         "numpy>=1.21.0",
     ],
+    extras_require={
+        'PIL': ['Pillow>=9.0.0'],
+        'cv2': ['opencv-python>=4.5.0'],
+        'all': [
+            'Pillow>=9.0.0',
+            'opencv-python>=4.5.0'
+        ]
+    },
     classifiers=[
         "Development Status :: 3 - Alpha",
         "Intended Audience :: Developers",
