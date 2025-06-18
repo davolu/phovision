@@ -13,7 +13,7 @@ Currently implemented algorithms:
 ## Installation
 
 ```bash
-pip install .
+pip install phovision
 ```
 
 ## Usage
