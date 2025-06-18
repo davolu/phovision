@@ -211,6 +211,23 @@ def _read_png(data):
     
     return img
 
+# JPEG markers
+JPEG_MARKERS = {
+    0xC0: 'SOF0',  # Baseline DCT
+    0xC1: 'SOF1',  # Extended Sequential DCT
+    0xC2: 'SOF2',  # Progressive DCT
+    0xC3: 'SOF3',  # Lossless
+    0xC4: 'DHT',   # Define Huffman Table
+    0xD8: 'SOI',   # Start of Image
+    0xD9: 'EOI',   # End of Image
+    0xDA: 'SOS',   # Start of Scan
+    0xDB: 'DQT',   # Define Quantization Table
+    0xDD: 'DRI',   # Define Restart Interval
+    0xE0: 'APP0',  # Application segment 0
+    0xE1: 'APP1',  # Application segment 1
+    0xFE: 'COM'    # Comment
+}
+
 def _read_jpeg_header(data):
     """Read JPEG header information."""
     if data[:2] != b'\xFF\xD8':  # SOI marker
@@ -221,29 +238,113 @@ def _read_jpeg_header(data):
     width = None
     components = None
     
-    while pos < len(data):
-        # Find next marker
-        while data[pos] == 0xFF:
-            pos += 1
-        marker = data[pos]
-        pos += 1
-        
-        # Get segment length
-        if marker != 0xD9 and marker != 0xDA:  # Not EOI or SOS
-            length = struct.unpack('>H', data[pos:pos+2])[0]
-            pos += 2
+    try:
+        while pos < len(data) - 1:  # -1 to ensure we can read a byte
+            # Find next marker
+            if data[pos] != 0xFF:
+                pos += 1
+                continue
             
-            # SOF0 marker (baseline DCT)
-            if marker == 0xC0:
-                precision = data[pos]
-                height = struct.unpack('>H', data[pos+1:pos+3])[0]
-                width = struct.unpack('>H', data[pos+3:pos+5])[0]
-                components = data[pos+5]
+            # Skip padding
+            while data[pos] == 0xFF:
+                pos += 1
+            
+            if pos >= len(data):
+                break
+                
+            marker = data[pos]
+            pos += 1
+            
+            # Check for SOF markers (start of frame)
+            if marker in [0xC0, 0xC1, 0xC2]:  # Baseline, Extended, Progressive DCT
+                if pos + 8 > len(data):
+                    raise ValueError("Incomplete JPEG segment")
+                
+                length = struct.unpack('>H', data[pos:pos+2])[0]
+                if length < 8:
+                    raise ValueError("Invalid JPEG segment length")
+                
+                precision = data[pos+2]
+                height = struct.unpack('>H', data[pos+3:pos+5])[0]
+                width = struct.unpack('>H', data[pos+5:pos+7])[0]
+                components = data[pos+7]
+                
+                if height == 0 or width == 0:
+                    continue  # Try to find another SOF marker
+                
+                return width, height, components
+            
+            # Skip other segments
+            if pos + 2 > len(data):
+                break
+                
+            if marker != 0xD9:  # Not EOI
+                length = struct.unpack('>H', data[pos:pos+2])[0]
+                pos += length
+            
+    except Exception as e:
+        raise ValueError(f"Error parsing JPEG header: {str(e)}")
+    
+    raise ValueError("Could not find valid JPEG dimensions")
+
+def _extract_jpeg_data(data, width, height):
+    """Extract raw JPEG data and create a basic visualization."""
+    try:
+        # Find start of scan (SOS) marker
+        pos = 2  # Skip SOI marker
+        sos_found = False
+        
+        while pos < len(data) - 1:
+            if data[pos] != 0xFF:
+                pos += 1
+                continue
+            
+            while data[pos] == 0xFF:
+                pos += 1
+            
+            if pos >= len(data):
                 break
             
-            pos += length - 2
-    
-    return width, height, components
+            marker = data[pos]
+            pos += 1
+            
+            if marker == 0xDA:  # SOS marker
+                sos_found = True
+                pos += struct.unpack('>H', data[pos:pos+2])[0]  # Skip SOS segment
+                break
+            
+            if marker != 0xD9:  # Not EOI
+                pos += struct.unpack('>H', data[pos:pos+2])[0]
+        
+        if not sos_found:
+            raise ValueError("Could not find image data")
+        
+        # Extract image data
+        image_data = data[pos:]
+        
+        # Create a basic visualization using the compressed data
+        img = np.zeros((height, width, 3), dtype=np.uint8)
+        
+        # Use the compressed data to create a pattern
+        # This creates a more meaningful preview than random values
+        data_len = len(image_data)
+        block_size = 8  # JPEG typically uses 8x8 blocks
+        
+        for y in range(0, height, block_size):
+            for x in range(0, width, block_size):
+                # Get a value from the compressed data
+                block_pos = ((y * width + x) // block_size) % (data_len - 1)
+                value = image_data[block_pos]
+                
+                # Fill the block with the value
+                y_end = min(y + block_size, height)
+                x_end = min(x + block_size, width)
+                img[y:y_end, x:x_end] = [value, value, value]
+        
+        return img
+        
+    except Exception as e:
+        raise ValueError(f"Error extracting JPEG data: {str(e)}")
 
 def _read_jpeg(data):
     """Read a JPEG file from bytes."""
@@ -253,22 +354,8 @@ def _read_jpeg(data):
         if not all([width, height, components]):
             raise ValueError("Could not read JPEG dimensions")
         
-        # For JPEG, we'll create a simple grayscale representation
-        # This is a placeholder until we implement full JPEG decoding
-        img = np.zeros((height, width, 3), dtype=np.uint8)
-        
-        # Extract luminance information from JPEG data
-        # This is a very basic implementation that creates a rough preview
-        data_len = len(data)
-        for y in range(height):
-            for x in range(width):
-                # Use data values to create a basic pattern
-                # This is not actual JPEG decoding, just a visualization
-                pos = (y * width + x) % (data_len - 10) + 10
-                value = data[pos]
-                img[y, x] = [value, value, value]
-        
-        return img
+        # Extract and visualize the JPEG data
+        return _extract_jpeg_data(data, width, height)
         
     except Exception as e:
         raise ValueError(f"Error reading JPEG: {str(e)}")

@@ -5,7 +5,7 @@ with open("README.md", "r", encoding="utf-8") as fh:
 
 setup(
     name="phovision",
-    version="0.1.5rc3",
+    version="0.1.5rc4",
     description="A pure Python computer vision library",
     long_description=long_description,
     long_description_content_type="text/markdown",
